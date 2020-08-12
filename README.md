@@ -18,7 +18,7 @@ python setup.py develop
 ```
 Then run JupyterLab and open the notebook from the notebooks folder.
 
-###Note
+### Note
 Directory structure inspired from https://github.com/FlorianWilhelm/boston_housing
 
 This project has been set up using PyScaffold 3.1. For details and usage information on PyScaffold see https://pyscaffold.org/.
