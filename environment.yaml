@@ -22,3 +22,4 @@ dependencies:
   - pyscaffold
   - jupyterlab
   - stumpy
+  - yellowbrick
