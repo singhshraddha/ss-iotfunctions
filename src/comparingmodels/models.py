@@ -1,5 +1,7 @@
 from iotfunctions.anomaly import (SaliencybasedGeneralizedAnomalyScore, SpectralAnomalyScore,
-                                  FFTbasedGeneralizedAnomalyScore, KMeansAnomalyScore)
+                                  FFTbasedGeneralizedAnomalyScore)
+
+from ..anomalymodels.anomaly import KMeansAnomalyScore
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, func
 
