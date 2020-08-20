@@ -51,8 +51,8 @@ class ExistingModels(object):
         df_ret = self.execute(sali, df)
         return df_ret
 
-    def run_kmeans(self, df, nclusters=40):
-        kmi = KMeansAnomalyScore(self.columnname, 12, kmeans, nclusters=nclusters)
+    def run_kmeans(self, df, nclusters=40, contamination=0.1):
+        kmi = KMeansAnomalyScore(self.columnname, 12, kmeans, nclusters=nclusters, contamination=contamination)
         df_ret = self.execute(kmi, df)
         return df_ret
 
