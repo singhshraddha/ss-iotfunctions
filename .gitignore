@@ -129,3 +129,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Local folder for credentials
+dev_resources/
+dev_resources/credentials_as_dev.json
+dev_resources/credentials_as_postgre.json

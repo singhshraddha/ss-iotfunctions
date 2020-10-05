@@ -13,6 +13,8 @@ The Built In Functions module contains preinstalled functions
 '''
 
 import datetime as dt
+from abc import ABC
+
 import numpy as np
 import scipy as sp
 
@@ -85,7 +87,7 @@ def min_delta(df):
     return mindelta, df2
 
 
-def set_window_size_and_overlap(windowsize, trim_value=2 * DefaultWindowSize):
+def set_window_size_and_overlap(windowsize, trim_value=2*DefaultWindowSize):
     # make sure it is positive and not too large
     trimmed_ws = np.minimum(np.maximum(windowsize, 1), trim_value)
 
@@ -129,7 +131,6 @@ class KMeansAnomalyScore(BaseTransformer):
      The window size is typically set to 12 data points.
      Try several anomaly models on your data and use the one that fits your databest.
     '''
-
     def __init__(self, input_item, windowsize, output_item, nclusters=40, contamination=0.1):
         super().__init__()
         logger.debug(input_item)
@@ -170,7 +171,7 @@ class KMeansAnomalyScore(BaseTransformer):
             logger.error('Prepare data error: ' + str(e))
 
         # one dimensional time series - named temperature for catchyness
-        temperature = dfe[[self.input_item]].fillna(0).to_numpy().reshape(-1, )
+        temperature = dfe[[self.input_item]].fillna(0).to_numpy().reshape(-1,)
 
         return dfe, temperature
 
@@ -222,13 +223,13 @@ class KMeansAnomalyScore(BaseTransformer):
                 else:
                     n_cluster = 20
 
+                logger.debug('KMeans params, Clusters: ' + str(n_cluster) + ', Slices: ' + str(slices.shape))
+
                 n_cluster = np.minimum(n_cluster, slices.shape[0] // 2)
 
                 logger.debug('KMeans params, Clusters: ' + str(n_cluster) + ', Slices: ' + str(slices.shape))
 
-                cblofwin = CBLOF(n_clusters=n_cluster,
-                                 n_jobs=1,
-                                 contamination=self.contamination)
+                cblofwin = CBLOF(n_clusters=n_cluster, n_jobs=-1, contamination=self.contamination)
                 try:
                     cblofwin.fit(slices)
                 except Exception as e:
@@ -237,8 +238,6 @@ class KMeansAnomalyScore(BaseTransformer):
                     continue
 
                 pred_score = cblofwin.decision_scores_.copy() * KMeans_normalizer
-                threshold = cblofwin.threshold_
-                logger.info(f'For entity {entity} CBLOF threshold: {threshold}')
                 # np.savetxt('kmeans.csv', pred_score)
 
                 # length of time_series_temperature, signal_energy and ets_zscore is smaller than half the original
@@ -246,7 +245,7 @@ class KMeansAnomalyScore(BaseTransformer):
                 diff = temperature.size - pred_score.size
 
                 time_series_temperature = np.linspace(
-                    self.windowsize // 2, temperature.size - self.windowsize // 2 + 1,
+                    self.windowsize//2, temperature.size - self.windowsize//2 + 1,
                     temperature.size - diff)
                 #     temperature.size - self.windowsize + 1)
 
@@ -258,8 +257,6 @@ class KMeansAnomalyScore(BaseTransformer):
 
                 zScoreII = merge_score(dfe, dfe_orig, self.output_item,
                                        linear_interpolateK(np.arange(0, temperature.size, 1)), mindelta)
-
-                #zScoreII = np.where(zScoreII > threshold, 1, 0)
 
                 # np.savetxt('kmeans2.csv', zScoreII)
 
@@ -275,22 +272,22 @@ class KMeansAnomalyScore(BaseTransformer):
         # define arguments that behave as function inputs
         inputs = []
         inputs.append(UISingleItem(
-            name='input_item',
-            datatype=float,
-            description='Data item to analyze'
-        ))
+                name='input_item',
+                datatype=float,
+                description='Data item to analyze'
+                                              ))
 
         inputs.append(UISingle(
-            name='windowsize',
-            datatype=int,
-            description='Size of each sliding window in data points. Typically set to 12.'
-        ))
+                name='windowsize',
+                datatype=int,
+                description='Size of each sliding window in data points. Typically set to 12.'
+                                              ))
 
         # define arguments that behave as function outputs
         outputs = []
         outputs.append(UIFunctionOutSingle(
-            name='output_item',
-            datatype=float,
-            description='Anomaly score (kmeans)'
-        ))
+                name='output_item',
+                datatype=float,
+                description='Anomaly score (kmeans)'
+                ))
         return (inputs, outputs)
