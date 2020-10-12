@@ -242,7 +242,7 @@ class MatrixProfile(object):
                   f'{df_mp_anomaly.loc[anomaly_index][[self.timestamp, self.columnname,"mp"]]}')
             print(f'Data for patterns\n {df_pattern[[self.timestamp, self.columnname, "mp"]]}')
 
-        fig, ax = plt.subplots(figsize=(25, 10))
+        fig, ax = plt.subplots(figsize=(20, 5))
 
         ax.plot(df_mp_anomaly['timestamp'], df_mp_anomaly[self.columnname] - columnsub, linewidth=1, color='black',
                 label=self.columnname)
@@ -264,7 +264,8 @@ class MatrixProfile(object):
                 plt.axvline(x=xc, color='k', linestyle='--', linewidth=1)
 
         ax.legend(bbox_to_anchor=(1.1, 1.05))
-        ax.set_ylabel('Matrix Profile \n detects true anomalies', fontsize=13)
+        ax.set_ylabel(f'Matrix Profile \n detects k=threshold discords with input z-normalization={self.z_normalized}', 
+                      fontsize=13)
 
         return df_mp_anomaly
 

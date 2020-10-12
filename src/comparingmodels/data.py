@@ -56,6 +56,7 @@ class MonitorData(object):
         Make functions to get processed data - ready for anomaly detection
         """
         self.data_sel = data_sel
+        self.timestampcolumn = None
 
     def get_data(self, datapath):
         if self.data_sel.lower() == 'temperature':
@@ -68,6 +69,7 @@ class MonitorData(object):
             return self.get_anomaly_sample_data(datapath)
 
     def get_temperature_data(self, datapath, timestampcolumn='timestamp'):
+        self.timestampcolumn = timestampcolumn
         dp = DataProcessor(filepath=datapath, timestampcolumn=timestampcolumn)
         dp.add_entity('MyRoom')
         dp.add_derived_column('Temperature', 'value', 20)
