@@ -264,7 +264,7 @@ class MatrixProfile(object):
                 plt.axvline(x=xc, color='k', linestyle='--', linewidth=1)
 
         ax.legend(bbox_to_anchor=(1.1, 1.05))
-        ax.set_ylabel(f'Matrix Profile \n detects k=threshold discords with input z-normalization={self.z_normalized}', 
+        ax.set_ylabel(f'Matrix Profile \n detects k={threshold} discords with input z-normalization={self.z_normalized}', 
                       fontsize=13)
 
         return df_mp_anomaly
