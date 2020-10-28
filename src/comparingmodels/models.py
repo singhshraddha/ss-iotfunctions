@@ -1,9 +1,9 @@
 from iotfunctions.anomaly import (SaliencybasedGeneralizedAnomalyScore,
                                   SpectralAnomalyScore,
                                   FFTbasedGeneralizedAnomalyScore,
-                                  SaliencybasedGeneralizedAnomalyScorev2,
-                                  FFTbasedGeneralizedAnomalyScorev2,
-                                  KMeansAnomalyScorev2)
+                                  SaliencybasedGeneralizedAnomalyScoreV2,
+                                  FFTbasedGeneralizedAnomalyScoreV2,
+                                  KMeansAnomalyScoreV2)
 
 from ..anomalymodels.anomaly import KMeansAnomalyScore
 
@@ -12,10 +12,14 @@ from iotfunctions.dbtables import FileModelStore
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, func
 
+from . import utils
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import json
+import time
+from scipy import stats
 
 sns.set()
 import matplotlib.pyplot as plt
@@ -52,11 +56,11 @@ def get_job_settings():
 
 
 class ExistingModels(object):
-    kmeans_break = 1
-    spectral_break = 100 / 2.8
-    fft_break = 1
-    sal_break = 1
-    gen_break = 1 / 300
+    kmeans_break = 10
+    spectral_break = 100
+    fft_break = 100
+    sal_break = 100
+    gen_break = 3
 
     def __init__(self, columnname):
         '''
@@ -66,7 +70,7 @@ class ExistingModels(object):
 
     def run_saliency(self, df, normalize=False):
         if normalize:
-            sali = SaliencybasedGeneralizedAnomalyScorev2(self.columnname, 12, normalize, sal)
+            sali = SaliencybasedGeneralizedAnomalyScoreV2(self.columnname, 12, normalize, sal)
         else:
             sali = SaliencybasedGeneralizedAnomalyScore(self.columnname, 12, sal)
         df_ret = self.execute(sali, df)
@@ -74,7 +78,7 @@ class ExistingModels(object):
 
     def run_kmeans(self, df, nclusters=40, contamination=0.1, normalize=False):
         if normalize:
-            kmi = KMeansAnomalyScorev2(self.columnname, 12, normalize, kmeans)
+            kmi = KMeansAnomalyScoreV2(self.columnname, 12, normalize, kmeans)
         else:
             kmi = KMeansAnomalyScore(self.columnname, 12, kmeans, nclusters=nclusters, contamination=contamination)
         df_ret = self.execute(kmi, df)
@@ -82,7 +86,7 @@ class ExistingModels(object):
 
     def run_fft(self, df, normalize=False):
         if normalize:
-            ffti = FFTbasedGeneralizedAnomalyScorev2(self.columnname, 12, normalize, fft)
+            ffti = FFTbasedGeneralizedAnomalyScoreV2(self.columnname, 12, normalize, fft)
         else:
             ffti = FFTbasedGeneralizedAnomalyScore(self.columnname, 12, fft)
         df_ret = self.execute(ffti, df)
@@ -193,13 +197,13 @@ class MatrixProfile(object):
 
     def top_k_discords_idx(self, df, k=1, exclusion_zone=12):
         """
-
         :param df: dataframe with values of mp
         :param k: num of discords
         :param exclusion_zone: area to exclude around discord when finding next discord
         :return: the top k discords with exclusion zone enabled. Only the largest discord
         in a ~2*exclusion zone window is considered
         """
+        tic = time.time()
         exclusion_zone = exclusion_zone
 
         index = np.argsort(df['mp'].to_list())[::-1]
@@ -210,21 +214,55 @@ class MatrixProfile(object):
 
             if len(index_discords) >= k:
                 break
-
+        toc = time.time()
+        print(f'Execution time (top_k_discords_idx): {toc - tic}')
         return index_discords
 
-    def plot_mp(self, threshold=1, columnsub=0, printdata=False, motif=False):
+    def zscore_threshold_idx(self, df, threshold=3, exclusion_zone=12):
+        """
+        :param df pd.DataFarame data
+        :param threshold number of standard deviation above mean to retain
+        :param exclusion_zone number {area +/-} to exclude around discord when finding next discord
+        :return: all discord value above threshold
+        """
+        tic = time.time()
+        df["mp_zscore"] = stats.zscore(df["mp"].values)
+        #threshold = df["mp"].max() - threshold * df["mp"].std()
+        # index for all anomalies
+        # anomalies are defined as mp with zscore above threshold
+        # above_threshold_index = df.index[df["mp_zscore"] > threshold].tolist()
+        above_threshold_index = df.index[df["mp"] > threshold].tolist()
+        # idx for anomalies with exclusion zone
+        zscore_index = []
+        for idx in above_threshold_index:
+            if not utils.is_in_exclusion_zone(idx, zscore_index, exclusion_zone):
+                zscore_index.append(idx)
+        toc = time.time()
+        print(f'Selected threshold (zscore_threshold_idx) {threshold}')
+        print(f'Execution time (zscore_threshold_idx): {toc - tic}')
+
+        return zscore_index
+
+    def plot_mp(self, topk=1, threshold=3, shiftoriginal=0, printdata=False, motif=False, usethreshold=True):
         """
 
-        :param threshold: nsmallest values to label as discords
-        :param columnsub: 
-        :return: 
+        :param usethreshold: bool when true use zscore threshold, when false use top-k discords
+        :param topk: nsmallest values to label as discords
+        :param threshold: discords (z-scored mp) above threshold are considered anomalies
+        :param shiftoriginal: shift the univariate signal on the plot
+        :param printdata: print a few discords
+        :param motif: plot pattern
+        :return: data plotted as dataframe
         """
-        #description
+        #appends mp to original df
         df_mp_anomaly = self.append_to_original()
 
-        # mark the X highest values as discord, wehre X corresponds to user input for threshold
-        anomaly_index = self.top_k_discords_idx(df_mp_anomaly, k=threshold, exclusion_zone=self.windowsize)
+        # mark the X highest values as discord, where X corresponds to user input for threshold
+        if usethreshold:
+            anomaly_index = self.zscore_threshold_idx(df_mp_anomaly, threshold=threshold,exclusion_zone=self.windowsize)
+        else:
+            anomaly_index = self.top_k_discords_idx(df_mp_anomaly, k=topk, exclusion_zone=self.windowsize)
+
         df_mp_anomaly['anomaly'] = np.nan
         df_mp_anomaly.loc[anomaly_index, 'anomaly'] = df_mp_anomaly['mp'].max() + 1 + 1
         xindex_anomaly = anomaly_index
@@ -244,12 +282,13 @@ class MatrixProfile(object):
 
         fig, ax = plt.subplots(figsize=(20, 5))
 
-        ax.plot(df_mp_anomaly['timestamp'], df_mp_anomaly[self.columnname] - columnsub, linewidth=1, color='black',
+        ax.plot(df_mp_anomaly['timestamp'], df_mp_anomaly[self.columnname] - shiftoriginal, linewidth=1, color='black',
                 label=self.columnname)
         #plot matrix profile
         ax.plot(df_mp_anomaly['timestamp'], df_mp_anomaly['mp'], linewidth=2, color='magenta', label='mp')
         #plotting discords
-        ax.scatter(df_mp_anomaly['timestamp'], df_mp_anomaly['anomaly'], linewidth=5, color='red')
+        if anomaly_index:
+            ax.scatter(df_mp_anomaly['timestamp'], df_mp_anomaly['anomaly'], linewidth=5, color='red')
         for idx, xc in enumerate(xpositions_anomaly):
             plt.axvline(x=xc, color='r', linestyle='--', linewidth=1)
             loc = min(df_mp_anomaly.shape[0] - 1, xindex_anomaly[idx] + self.windowsize)
@@ -264,8 +303,14 @@ class MatrixProfile(object):
                 plt.axvline(x=xc, color='k', linestyle='--', linewidth=1)
 
         ax.legend(bbox_to_anchor=(1.1, 1.05))
-        ax.set_ylabel(f'Matrix Profile \n detects k={threshold} discords with input z-normalization={self.z_normalized}', 
-                      fontsize=13)
+
+        if usethreshold:
+            ax.set_ylabel(f'Matrix Profile \n uses threshold={threshold} to detect anomalies with input z-normalization'
+                          f'={self.z_normalized}',fontsize=13)
+        else:
+            ax.set_ylabel(
+                f'Matrix Profile \n detects k={threshold} discords with input z-normalization={self.z_normalized}',
+                fontsize=13)
 
         return df_mp_anomaly
 

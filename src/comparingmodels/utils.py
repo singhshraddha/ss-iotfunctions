@@ -38,3 +38,18 @@ def unrollAccel(df):
     df['accel_power_2'] = np.asarray(l2)
     df['accel_power_3'] = np.asarray(l3)
     df['accel_power_4'] = np.asarray(l4)
+
+
+def is_in_exclusion_zone(number, list_of_numbers, exclusion_zone):
+    """
+    finds if number is in the exclusion zone of any num in list of numbers
+    :param number
+    :param list_of_numbers list 
+    :param exclusion_zone: range around the numnbers in exclusion zone
+    :return: True when nummber is the range defined by exclusion zone
+    """
+    if any(item in list(range(number - exclusion_zone, number + exclusion_zone)) for item in list_of_numbers):
+        return True
+
+    return False
+
