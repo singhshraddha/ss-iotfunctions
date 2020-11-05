@@ -5,6 +5,10 @@ __pycache__/
 *$py.class
 *.pyc
 
+#extra stuff
+notebooks/.DS_Store
+.DS_Store
+
 # C extensions
 *.so
 
