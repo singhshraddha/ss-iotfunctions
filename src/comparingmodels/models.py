@@ -56,11 +56,11 @@ def get_job_settings():
 
 
 class ExistingModels(object):
-    kmeans_break = 10
+    kmeans_break = 50000
     spectral_break = 100
-    fft_break = 100
-    sal_break = 100
-    gen_break = 3
+    fft_break = 1000
+    sal_break = 1000
+    gen_break = 300
 
     def __init__(self, columnname):
         '''
@@ -68,40 +68,40 @@ class ExistingModels(object):
         '''
         self.columnname = columnname
 
-    def run_saliency(self, df, normalize=False):
+    def run_saliency(self, df, normalize=False, windowsize=12):
         if normalize:
             sali = SaliencybasedGeneralizedAnomalyScoreV2(self.columnname, 12, normalize, sal)
         else:
-            sali = SaliencybasedGeneralizedAnomalyScore(self.columnname, 12, sal)
+            sali = SaliencybasedGeneralizedAnomalyScore(self.columnname, windowsize, sal)
         df_ret = self.execute(sali, df)
         return df_ret
 
-    def run_kmeans(self, df, nclusters=40, contamination=0.1, normalize=False):
+    def run_kmeans(self, df, nclusters=40, contamination=0.1, normalize=False, windowsize=12):
         if normalize:
-            kmi = KMeansAnomalyScoreV2(self.columnname, 12, normalize, kmeans)
+            kmi = KMeansAnomalyScoreV2(self.columnname, windowsize, normalize, kmeans)
         else:
-            kmi = KMeansAnomalyScore(self.columnname, 12, kmeans, nclusters=nclusters, contamination=contamination)
+            kmi = KMeansAnomalyScore(self.columnname, windowsize, kmeans, nclusters=nclusters, contamination=contamination)
         df_ret = self.execute(kmi, df)
         return df_ret
 
-    def run_fft(self, df, normalize=False):
+    def run_fft(self, df, normalize=False, windowsize=12):
         if normalize:
-            ffti = FFTbasedGeneralizedAnomalyScoreV2(self.columnname, 12, normalize, fft)
+            ffti = FFTbasedGeneralizedAnomalyScoreV2(self.columnname, windowsize, normalize, fft)
         else:
-            ffti = FFTbasedGeneralizedAnomalyScore(self.columnname, 12, fft)
+            ffti = FFTbasedGeneralizedAnomalyScore(self.columnname, windowsize, fft)
         df_ret = self.execute(ffti, df)
         return df_ret
 
-    def run_spectral(self, df):
-        spsi = SpectralAnomalyScore(self.columnname, 12, spectral)
+    def run_spectral(self, df, windowsize=12):
+        spsi = SpectralAnomalyScore(self.columnname, windowsize, spectral)
         df_ret = self.execute(spsi, df)
         return df_ret
 
-    def run_all(self, df, normalize=False):
-        df_ret = self.run_spectral(df)
-        df_ret = self.run_saliency(df_ret, normalize=normalize)
-        df_ret = self.run_kmeans(df_ret, normalize=normalize)
-        df_ret = self.run_fft(df_ret, normalize=normalize)
+    def run_all(self, df, normalize=False, windowsize=12):
+        df_ret = self.run_spectral(df, windowsize=windowsize)
+        df_ret = self.run_saliency(df_ret, normalize=normalize, windowsize=windowsize)
+        df_ret = self.run_kmeans(df_ret, normalize=normalize, windowsize=windowsize)
+        df_ret = self.run_fft(df_ret, normalize=normalize, windowsize=windowsize)
 
         return df_ret
 
@@ -123,15 +123,15 @@ class ExistingModels(object):
         self.plot_anomaly_column(df, ax, 0)
         self.plot_kmeans(df, ax, 1)
 
-    def plot_all(self, df):
+    def plot_all(self, df, scaling_factor=100):
         plots = 5
         fig, ax = plt.subplots(plots, 1, figsize=(16, 24))
 
         self.plot_anomaly_column(df, ax, 0)
-        self.plot_kmeans(df, ax, 1)
-        self.plot_fft(df, ax, 2)
-        self.plot_spectral(df, ax, 3)
-        self.plot_sal(df, ax, 4)
+        self.plot_kmeans(df, ax, 1, scaling_factor=scaling_factor)
+        self.plot_fft(df, ax, 2, scaling_factor=scaling_factor)
+        self.plot_spectral(df, ax, 3, scaling_factor=scaling_factor)
+        self.plot_sal(df, ax, 4, scaling_factor=scaling_factor)
 
     def plot_anomaly_column(self, df, ax, cnt):
         ax[cnt].plot(df.index, df[self.columnname], linewidth=1, color='black',
@@ -139,47 +139,47 @@ class ExistingModels(object):
         ax[cnt].legend(bbox_to_anchor=(1.1, 1.05))
         ax[cnt].set_ylabel('Input', fontsize=14, weight="bold")
 
-    def plot_spectral(self, df, ax, cnt):
+    def plot_spectral(self, df, ax, cnt, scaling_factor=100):
         df[spectralA] = df[spectral]
         df[spectralA].values[df[spectralA] < self.spectral_break] = np.nan
         df[spectralA].values[df[spectralA] > self.spectral_break] = self.spectral_break
 
         ax[cnt].plot(df.index, df[self.columnname], linewidth=1, color='black', label=self.columnname)
-        ax[cnt].plot(df.index, df[spectral] / self.spectral_break, linewidth=2, color='dodgerblue', label=spectral)
+        ax[cnt].plot(df.index, df[spectral] * scaling_factor, linewidth=2, color='dodgerblue', label=spectral)
         ax[cnt].plot(df.index, df[spectralA] / self.spectral_break, linewidth=10, color='red')
         ax[cnt].legend(bbox_to_anchor=(1.1, 1.05))
         ax[cnt].set_ylabel('Spectral \n like FFT for less "CPU"\n less sensitive', fontsize=13)
 
-    def plot_sal(self, df, ax, cnt):
+    def plot_sal(self, df, ax, cnt, scaling_factor=100):
         df[salA] = df[sal]
         df[salA].values[df[salA] < self.sal_break] = np.nan
         df[salA].values[df[salA] > self.sal_break] = self.sal_break
 
         ax[cnt].plot(df.index, df[self.columnname], linewidth=1, color='black', label=self.columnname)
-        ax[cnt].plot(df.index, df[sal] / self.sal_break, linewidth=2, color='chartreuse', label=sal)
+        ax[cnt].plot(df.index, df[sal] * scaling_factor, linewidth=2, color='chartreuse', label=sal)
         ax[cnt].plot(df.index, df[salA] / self.sal_break, linewidth=10, color='red')
         ax[cnt].legend(bbox_to_anchor=(1.1, 1.05))
         ax[cnt].set_ylabel('Saliency \n like FFT, part of Azure\'s approach', fontsize=13)
 
-    def plot_fft(self, df, ax, cnt):
+    def plot_fft(self, df, ax, cnt, scaling_factor=100):
         df[fftA] = df[fft]
         df[fftA].values[df[fftA] < self.fft_break] = np.nan
         df[fftA].values[df[fftA] > self.fft_break] = self.fft_break
 
         ax[cnt].plot(df.index, df[self.columnname], linewidth=1, color='black', label=self.columnname)
-        ax[cnt].plot(df.index, df[fft] / self.fft_break, linewidth=2, color='darkgreen', label=fft)
+        ax[cnt].plot(df.index, df[fft] * scaling_factor, linewidth=2, color='darkgreen', label=fft)
         ax[cnt].plot(df.index, df[fftA] / self.fft_break, linewidth=10, color='red')
         ax[cnt].legend(bbox_to_anchor=(1.1, 1.05))
         ax[cnt].set_ylabel('FFT \n detects frequency changes', fontsize=13)
 
-    def plot_kmeans(self, df, ax, cnt):
+    def plot_kmeans(self, df, ax, cnt, scaling_factor=100):
         df[kmeansA] = df[kmeans]
         df[kmeansA].values[df[kmeansA] > self.kmeans_break] = self.kmeans_break
-        df[kmeansA].values[df[kmeansA] < self.kmeans_break] = np.nan
+        #df[kmeansA].values[df[kmeansA] < self.kmeans_break] = np.nan
 
         #ax[cnt].plot(df.index, df[self.columnname], linewidth=1, color='black', label=self.columnname)
-        ax[cnt].plot(df.index, df[kmeans] / self.kmeans_break, linewidth=2, color='magenta', label=kmeans)
-        ax[cnt].plot(df.index, df[kmeansA] / self.kmeans_break, linewidth=10, color='red')
+        ax[cnt].plot(df.index, df[kmeans] * scaling_factor, linewidth=2, color='magenta', label=kmeans)
+        #ax[cnt].plot(df.index, df[kmeansA] / self.kmeans_break, linewidth=10, color='red')
         ax[cnt].legend(bbox_to_anchor=(1.1, 1.05))
         ax[cnt].set_ylabel('KMeans \n detects changes in "steepness"', fontsize=13)
 
@@ -243,7 +243,7 @@ class MatrixProfile(object):
 
         return zscore_index
 
-    def plot_mp(self, topk=1, threshold=3, shiftoriginal=0, printdata=False, motif=False, usethreshold=True):
+    def plot_mp(self, topk=1, threshold=3, scaling_factor=1, printdata=False, motif=False, usethreshold=True):
         """
 
         :param usethreshold: bool when true use zscore threshold, when false use top-k discords
@@ -282,10 +282,11 @@ class MatrixProfile(object):
 
         fig, ax = plt.subplots(figsize=(20, 5))
 
-        ax.plot(df_mp_anomaly['timestamp'], df_mp_anomaly[self.columnname] - shiftoriginal, linewidth=1, color='black',
+        ax.plot(df_mp_anomaly['timestamp'], df_mp_anomaly[self.columnname], linewidth=1, color='black',
                 label=self.columnname)
         #plot matrix profile
-        ax.plot(df_mp_anomaly['timestamp'], df_mp_anomaly['mp'], linewidth=2, color='magenta', label='mp')
+        ax.plot(df_mp_anomaly['timestamp'], df_mp_anomaly['mp'] * scaling_factor, linewidth=2, color='magenta', 
+                label='mp')
         #plotting discords
         if anomaly_index:
             ax.scatter(df_mp_anomaly['timestamp'], df_mp_anomaly['anomaly'], linewidth=5, color='red')

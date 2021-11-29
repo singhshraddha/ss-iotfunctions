@@ -48,6 +48,15 @@ class DataProcessor(object):
         df[columnname] = self.ss.transform(np.array(df[columnname]).reshape(-1, 1))
         return df
 
+    def col_to_timestamp(self, timestampcolumn):
+        self.df['timestamp'] = pd.to_datetime(self.df[timestampcolumn], format='%Y-%m-%d-%H.%M.%S.%f')
+
+    def keep_first_n_datapoints(self, n):
+        self.df = self.df[0:n]
+
+    def keep_last_n_datapoints(self, n):
+        self.df = self.df[-n:]
+
 
 class MonitorData(object):
 
@@ -67,6 +76,10 @@ class MonitorData(object):
             return self.get_cakebreak_data(datapath)
         if self.data_sel.lower() == 'pressure':
             return self.get_anomaly_sample_data(datapath)
+        if self.data_sel.lower() == 'numbertag':
+            return self.get_numbertag_data(datapath)
+        if self.data_sel.lower() == 'cvs':
+            return self.get_cvs_data(datapath)
 
     def get_temperature_data(self, datapath, timestampcolumn='timestamp'):
         self.timestampcolumn = timestampcolumn
@@ -112,5 +125,23 @@ class MonitorData(object):
         dp.drop_columns(columns=['LOGICALINTERFACE_ID', 'EVENTTYPE', 'FORMAT', 'TURBINE_ID'])
         dp.process_data()
         df = dp.get_data()
-
         return df
+
+    def get_numbertag_data(self, datapath, timestampcolumn='EVT_TIMESTAMP'):
+        dp = DataProcessor(filepath=datapath, timestampcolumn=timestampcolumn)
+        dp.keep_last_n_datapoints(500000)
+        dp.change_column_name('entity', 'DEVICEID')
+        dp.col_to_timestamp(timestampcolumn)
+        dp.process_data()
+        dp.drop_columns(columns=['LOGICALINTERFACE_ID', 'EVENTTYPE', 'FORMAT', 'DEVICETYPE',
+                                 'UPDATED_UTC', 'RCV_TIMESTAMP_UTC', 'EVT_TIMESTAMP', 'DEVICEID', 'STATUS'])
+        return dp.get_data()
+
+    def get_cvs_data(self, datapath, timestampcolumn='READING_TIMESTAMP'):
+        dp = DataProcessor(filepath=datapath, timestampcolumn=timestampcolumn)
+        dp.change_column_name('entity', 'LOCATION_ID')
+        dp.col_to_timestamp(timestampcolumn)
+        dp.process_data()
+        dp.drop_columns(columns=['COST', 'LOCATION_CITY', 'READING_TIMESTAMP', 'Total_SqFt', 'MonthHRS', 'Month', 
+                                 'Year', 'LOCATION_ID'])
+        return dp.get_data()
